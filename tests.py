@@ -59,6 +59,11 @@ def test_write(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME):
   #     raise e
   workbook.save(wb)
 
+def test_10k_link():
+  with open("dir_0001555280-21-000098.htm") as local_html:
+    link = get_dir_10k_link(BeautifulSoup(local_html, "html.parser"))
+    print(link)
+
 def full_pipe_test():
   # using last item in excel file
   row_id = 4239
@@ -74,11 +79,6 @@ def full_pipe_test():
   sentences = get_diversity_instances(clean_10k)
   # write results (using function) (NEW)
   write_sentence_stats(4239,sentences)
-
-def test_10k_link():
-  with open("dir_0001555280-21-000098.htm") as local_html:
-    link = get_dir_10k_link(BeautifulSoup(local_html, "html.parser"))
-    print(link)
 
 if __name__ == "__main__":
   # test_link()

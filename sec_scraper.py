@@ -53,6 +53,17 @@ def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
   html = resp.text
   return BeautifulSoup(html, "html.parser")
 
+def get_sheet_dir_link(row_id:int, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK) -> str:
+  workbook = load_workbook(wb)
+  worksheet = workbook[ws]
+  next_link = worksheet.cell(column=target,row=row_id).value
+  if isinstance(next_link, str) and len(next_link) > 5:
+    logging.info(f"Found: {next_link}")
+    return next_link
+  else:
+    logging.error(f"Encountered an entry with missing or invalid `sec_link` at row: {row_id}")
+    return next_link
+
 def get_dir_10k_link(page_dir:BeautifulSoup) -> str:
   link_10k = ""
   for table_row in page_dir.find_all("tr"):
@@ -61,6 +72,8 @@ def get_dir_10k_link(page_dir:BeautifulSoup) -> str:
         link_10k = SecLink(table_row.find_all('td')[2].a.get('href'))
     except:
       continue
+  if link_10k == "":
+    logging.error(f"Encountered an entry with no `10k_link`, returning empty link")
   return link_10k
 
 def get_diversity_instances(plaintext:str) -> list:
@@ -74,17 +87,6 @@ def get_diversity_instances(plaintext:str) -> list:
     new_sentence = plaintext[start:stop]
     sentences.append(new_sentence)
   return sentences
-
-def get_sheet_dir_link(row_id:int, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK) -> str:
-  workbook = load_workbook(wb)
-  worksheet = workbook[ws]
-  next_link = worksheet.cell(column=target,row=row_id).value
-  if isinstance(next_link, str) and len(next_link) > 5:
-    logging.info(f"Found: {next_link}")
-    return next_link
-  else:
-    logging.error(f"Encountered an entry with missing or invalid `sec_link` at row: {row_id}")
-    return next_link
 
 def write_sentence_stats(row_id:int, sentences:list, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME):
   workbook = load_workbook(wb)
@@ -101,12 +103,43 @@ def write_sentence_stats(row_id:int, sentences:list, wb=WORKBOOK_NAME, ws=WORKSH
       value   = "\n".join(sentences)
     ).alignment = Alignment(wrapText=True)
   except Exception as e:
+    logging.critical(f"Final Statistics Writing Interrupted (`write_sentence_stats`), attempting to save (failure on row: {row_id})")
     workbook.save(wb)
     raise e
+  logging.info(f"Saved sentence statistics for row: {row_id}")
   workbook.save(wb)
 
-def overwrite_all_stats():
-  pass
+def overwrite_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK):
+  workbook = load_workbook(wb)
+  worksheet = workbook[ws]
+  links = []
+  # for all items in the excel file
+  for row_id in range(ROW_START,len(worksheet[idc])):
+    dir_link = worksheet.cell(column=target,row=row_id).value
+    if not isinstance(dir_link, str) or not len(dir_link) > 5:
+      logging.error(f"Encountered an entry with missing or invalid `sec_link` at row: {row_id} was SKIPPED")
+      continue
+    dir_page        = get_page_rate_limited(dir_link)
+    clean_10k_link  = get_dir_10k_link(dir_page)
+    clean_10k       = get_page_rate_limited(clean_10k_link).body.get_text().strip()
+    sentences       = get_diversity_instances(clean_10k)
+    try:
+      worksheet.cell(
+        column  = COLUMN_D_WORDCOUNT,
+        row     = row_id,
+        value   = len(sentences)
+      )
+      worksheet.cell(
+        column  = COLUMN_D_SENTENCES,
+        row     = row_id,
+        value   = "\n".join(sentences)
+      ).alignment = Alignment(wrapText=True)
+    except Exception as e:
+      logging.critical(f"Final Statistics Writing Interrupted (`write_sentence_stats`), attempting to save (failure on row: {row_id})")
+      workbook.save(wb)
+      raise e
+    logging.info(f"Saved sentence statistics for row: {row_id}")
+    workbook.save(wb)
 
 if __name__ == "__main__":
   overwrite_all_stats()
