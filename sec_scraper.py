@@ -91,7 +91,7 @@ def get_dir_10k_link(page_dir:BeautifulSoup) -> str:
     except:
       continue
   if link_10k == "":
-    logging.error(f"Encountered an entry with no `10k_link`, returning empty link")
+    raise Exception("Encountered an entry with no `10k_link`")
   return link_10k
 
 def get_diversity_instances(plaintext:str) -> list:
@@ -140,7 +140,11 @@ def overwrite_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, ta
       logging.error(f"SKIPPED row: {row_id} (Encountered an entry with missing or invalid `sec_link`)")
       continue
     dir_page        = get_page_rate_limited(dir_link)
-    clean_10k_link  = get_dir_10k_link(dir_page)
+    try:
+      clean_10k_link  = get_dir_10k_link(dir_page)
+    except Exception as e:
+      logging.error("`get_dir_10k_link` could not find 10-k link for row {row_id}")
+      continue
     clean_10k       = get_page_rate_limited(clean_10k_link).body.get_text().strip().replace("\n"," ") # removing any newlines as well
     sentences       = get_diversity_instances(clean_10k)
     try:
