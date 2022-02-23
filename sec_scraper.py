@@ -10,8 +10,18 @@ from    openpyxl        import load_workbook
 from    openpyxl.styles import Alignment
 from    bs4             import BeautifulSoup
 from    ratelimit       import limits, RateLimitException, sleep_and_retry
+from    datetime        import datetime as __datetime
+from    datetime        import timezone as __timezone
 
-logging.basicConfig(level=logging.DEBUG)
+def timename() -> str:
+  return str(__datetime.now(__timezone.utc)).replace(" ","T").replace("-00:00","").replace("+00:00","").replace(":",".") + "Z"
+
+logging.basicConfig(
+  filename=f'{timename()}.log', 
+  encoding='utf-8', 
+  level=logging.DEBUG,
+  format='[%(asctime)s] %(levelname)s %(message)s'
+)
 
 WORKBOOK_NAME           = "kai-file.xlsx"
 WORKSHEET_NAME          = "export"
@@ -20,10 +30,10 @@ COLUMN_SEC_LINK         = 9
 COLUMN_D_WORDCOUNT      = 11
 COLUMN_D_SENTENCES      = 12
 ROW_START               = 2
-TEN_SECONDS             = 10 # Out of decency, using 10 seconds as opposed to 1 second long wait
+TEN_SECONDS             = 10
 MAX_CALLS_PER_SECOND    = 10
 CHARACTER_SEARCH_RANGE  = 100
-REGEX                   = 'divers' # for now, just using a simple search string
+REGEX                   = re.compile(r'\bdiversity\b | \bdiverse\b',flags=re.I | re.X)
 HEADERS                 = json.load(open("secrets.json"))["sec_request_headers"]
 
 class SecLink():
