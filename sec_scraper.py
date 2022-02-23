@@ -141,9 +141,12 @@ def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, targe
     try:
       d_wordcount = worksheet.cell(column = COLUMN_D_WORDCOUNT, row = row_id).value
       d_sentences = worksheet.cell(column = COLUMN_D_SENTENCES, row = row_id).value
-      if d_wordcount != "" and int(d_wordcount) > 0 and len(d_sentences) > 50:
-        logging.info(f"`is_complete` SKIPPED row {row_id}, appears to already be complete")
-        continue
+      if d_wordcount != "" and d_wordcount.isdigit():
+        if int(d_wordcount) > 0 and len(d_sentences) > 50:
+          logging.info(f"`is_complete` SKIPPED row {row_id}, appears to already be complete")
+          continue
+      else:
+        logging.info(f"`is_complete` row {row_id} has errors in `COLUMN_D_WORDCOUNT` ({COLUMN_D_WORDCOUNT}), will overwrite")
     except Exception as e:
       logging.error(f"`is_complete` SKIPPED row {row_id}, could not determine completion status of entry")
       continue
