@@ -20,7 +20,7 @@ logging.basicConfig(
   filename  = f'logs/{timename()}.log', 
   encoding  = 'utf-8',
   level     = logging.DEBUG,
-  format    = '[%(asctime)s] %(levelname)s %(message)s'
+  format    = '[%(asctime)s] %(levelname)s\t%(message)s'
 )
 
 WORKBOOK_NAME           = "kai-file.xlsx"
@@ -29,6 +29,7 @@ COLUMN_MAIN             = 'A' # NOTICE that this is only used down in "overwrite
 COLUMN_SEC_LINK         = 9
 COLUMN_D_WORDCOUNT      = 11
 COLUMN_D_SENTENCES      = 12
+COLUMN_CONAME           = 5
 ROW_START               = 2
 TEN_SECONDS             = 10
 MAX_CALLS_PER_SECOND    = 10
@@ -67,6 +68,7 @@ class SecLink():
 @sleep_and_retry
 @limits(calls=MAX_CALLS_PER_SECOND, period=TEN_SECONDS)
 def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
+  logging.info(f"`get_page_rate_limited`: {link}")
   resp = requests.get(link, headers=headers)
   html = resp.text
   return BeautifulSoup(html, "html.parser")
@@ -127,14 +129,24 @@ def write_sentence_stats(row_id:int, sentences:list, wb=WORKBOOK_NAME, ws=WORKSH
   logging.info(f"Saved sentence statistics for row: {row_id}")
   workbook.save(wb)
 
-def overwrite_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK):
+def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK, coname=COLUMN_CONAME):
   logging.info("beginning `overwrite_all_stats`")
   workbook = load_workbook(wb)
   worksheet = workbook[ws]
-  # for all items in the excel file
   items = len(worksheet[idc])
   logging.info(f"running script for {items} items")
   for row_id in range(ROW_START,items):
+    company_name = worksheet.cell(column=coname,row=row_id).value
+    logging.info(f"Updating diversity statistics for row {row_id} ({company_name})")
+    try:
+      d_wordcount = worksheet.cell(column = COLUMN_D_WORDCOUNT, row = row_id).value
+      d_sentences = worksheet.cell(column = COLUMN_D_SENTENCES, row = row_id).value
+      if d_wordcount != "" and int(d_wordcount) > 0 and len(d_sentences) > 50:
+        logging.info(f"Skipping row {row_id}, appears to already be complete")
+        continue
+    except Exception as e:
+      logging.info(f"Skipping row {row_id}, could not determine completion status of entry")
+      continue
     dir_link = worksheet.cell(column=target,row=row_id).value
     if not isinstance(dir_link, str) or not len(dir_link) > 5:
       logging.error(f"SKIPPED row: {row_id} (Encountered an entry with missing or invalid `sec_link`)")
@@ -143,10 +155,18 @@ def overwrite_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, ta
     try:
       clean_10k_link  = get_dir_10k_link(dir_page)
     except Exception as e:
-      logging.error("`get_dir_10k_link` could not find 10-k link for row {row_id}")
+      logging.error(f"`get_dir_10k_link` could not find 10-k link for row {row_id}")
       continue
-    clean_10k       = get_page_rate_limited(clean_10k_link).body.get_text().strip().replace("\n"," ") # removing any newlines as well
-    sentences       = get_diversity_instances(clean_10k)
+    try:
+      clean_10k       = get_page_rate_limited(clean_10k_link).body.get_text().strip().replace("\n"," ") # removing any newlines as well
+    except Exception as e:
+      logging.error(f"`update_all_stats.cleanup` FAILED, Skipping row {row_id}")
+      continue
+    try:
+      sentences       = get_diversity_instances(clean_10k)
+    except:
+      logging.error(f"`get_diversity_instances` FAILED, skipping row {row_id}")
+      continue
     try:
       worksheet.cell(
         column  = COLUMN_D_WORDCOUNT,
@@ -159,12 +179,12 @@ def overwrite_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, ta
         value   = "\n".join(sentences)
       ).alignment = Alignment(wrapText=True)
     except Exception as e:
-      logging.critical(f"Final Statistics Writing Interrupted (`write_sentence_stats`), attempting to save (failure on row: {row_id})")
+      logging.critical(f"Final Statistics Writing Interrupted (`write_sentence_stats`), attempting to save (failure on row: {row_id})\nCancelling future writes, PLEASE INSPECT FILE MANUALLY FOR ERRORS")
       workbook.save(wb)
       raise e
     logging.info(f"Saved sentence statistics for row: {row_id}")
     workbook.save(wb)
 
 if __name__ == "__main__":
-  overwrite_all_stats()
+  update_all_stats()
   pass

@@ -60,7 +60,7 @@ def test_write(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME):
   workbook.save(wb)
 
 def test_10k_link():
-  with open("dir_0001555280-21-000098.htm") as local_html:
+  with open("notes/dir_0001555280-21-000098.htm") as local_html:
     link = get_dir_10k_link(BeautifulSoup(local_html, "html.parser"))
     print(link)
 
