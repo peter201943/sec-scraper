@@ -131,16 +131,17 @@ def overwrite_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, ta
   logging.info("beginning `overwrite_all_stats`")
   workbook = load_workbook(wb)
   worksheet = workbook[ws]
-  links = []
   # for all items in the excel file
-  for row_id in range(ROW_START,len(worksheet[idc])):
+  items = len(worksheet[idc])
+  logging.info(f"running script for {items} items")
+  for row_id in range(ROW_START,items):
     dir_link = worksheet.cell(column=target,row=row_id).value
     if not isinstance(dir_link, str) or not len(dir_link) > 5:
-      logging.error(f"Encountered an entry with missing or invalid `sec_link` at row: {row_id} was SKIPPED")
+      logging.error(f"SKIPPED row: {row_id} (Encountered an entry with missing or invalid `sec_link`)")
       continue
     dir_page        = get_page_rate_limited(dir_link)
     clean_10k_link  = get_dir_10k_link(dir_page)
-    clean_10k       = get_page_rate_limited(clean_10k_link).body.get_text().strip()
+    clean_10k       = get_page_rate_limited(clean_10k_link).body.get_text().strip().replace("\n"," ") # removing any newlines as well
     sentences       = get_diversity_instances(clean_10k)
     try:
       worksheet.cell(
