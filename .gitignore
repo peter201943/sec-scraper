@@ -4,6 +4,7 @@ secrets.json
 secrets.txt
 secrets.yml
 secrets.yaml
+*.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
