@@ -1,21 +1,27 @@
+"""
+2022 MIT License Drexel University
+"""
 
 import  requests
 import  json
+import  re
 from    openpyxl        import load_workbook
 from    openpyxl.styles import Alignment
 from    bs4             import BeautifulSoup
 from    ratelimit       import limits, RateLimitException, sleep_and_retry
 
-WORKBOOK_NAME         = "final.xlsx"
-WORKSHEET_NAME        = "export"
-COLUMN_MAIN           = 1
-COLUMN_SEC_LINK       = 9
-COLUMN_10K_LINK       = 11
-COLUMN_D_WORDCOUNT    = 12
-COLUMN_D_SENTENCES    = 13
-ROW_START             = 2
-ONE_MINUTE            = 60
-MAX_CALLS_PER_MINUTE  = 10
+WORKBOOK_NAME           = "final.xlsx"
+WORKSHEET_NAME          = "export"
+COLUMN_MAIN             = 1
+COLUMN_SEC_LINK         = 9
+COLUMN_10K_LINK         = 11
+COLUMN_D_WORDCOUNT      = 12
+COLUMN_D_SENTENCES      = 13
+ROW_START               = 2
+TEN_SECONDS             = 10 # Out of decency, using 10 seconds as opposed to 1 second long wait
+MAX_CALLS_PER_SECOND    = 10
+CHARACTER_SEARCH_RANGE  = 100
+REGEX                   = 'divers' # for now, just using a simple search string
 
 HEADERS = json.load(open("secrets.json"))["sec_request_headers"]
 
@@ -75,28 +81,44 @@ def test_link():
   print(f"test_link: {repr(test_link)}")
 
 @sleep_and_retry
-@limits(calls=MAX_CALLS_PER_MINUTE, period=ONE_MINUTE)
-def access_rate_limited_api(link="https://www.sec.gov/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm", headers=HEADERS):
+@limits(calls=MAX_CALLS_PER_SECOND, period=TEN_SECONDS)
+def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
   resp = requests.get(link, headers=headers)
   html = resp.text
-  soup = BeautifulSoup(html, "html.parser")
-  print(soup.body.get_text().strip())
+  return BeautifulSoup(html, "html.parser")
 
-def test_rate_limit():
-  count = 0
-  for i in range(1000):
-    count = access_rate_limited_api("no link", count)
-    print(count)
-
-def get_dir_10k_link(page:str) -> str:
-  # use beautifulsoup, scan page for link
+def get_dir_10k_link(page_dir:BeautifulSoup) -> str:
   pass
 
+def get_diversity_instances(plaintext:str) -> list:
+  min_distance = 0
+  max_distance = len(plaintext)
+  places = (match.start() for match in re.finditer(REGEX, plaintext))
+  sentences = []
+  for place in places:
+    start = max(place - CHARACTER_SEARCH_RANGE, min_distance)
+    stop  = min(place + CHARACTER_SEARCH_RANGE, max_distance)
+    new_sentence = plaintext[start:stop]
+    sentences.append(new_sentence)
+  return sentences
+
+def test_grabbing():
+  sentences = get_diversity_instances(
+    get_page_rate_limited(
+      SecLink("https://www.sec.gov/ix?doc=/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm")
+    ).body.get_text().strip()
+  )
+  print(f"instances: {len(sentences)}")
+  print("sentences:")
+  for sentence in sentences:
+    print(f"- {sentence}")
+  
 if __name__ == "__main__":
   # test_write()
   # test_read()
   # test_requests()
   # test_link()
   # test_requests()
-  # test_rate_limit()
+  # access_rate_limited_api(SecLink("https://www.sec.gov/ix?doc=/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm"))
+  test_grabbing()
   pass
