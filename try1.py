@@ -5,12 +5,13 @@
 import  requests
 import  json
 import  re
+import  logging
 from    openpyxl        import load_workbook
 from    openpyxl.styles import Alignment
 from    bs4             import BeautifulSoup
 from    ratelimit       import limits, RateLimitException, sleep_and_retry
 
-WORKBOOK_NAME           = "final.xlsx"
+WORKBOOK_NAME           = "kai-file.xlsx"
 WORKSHEET_NAME          = "export"
 COLUMN_MAIN             = 1
 COLUMN_SEC_LINK         = 9
@@ -121,10 +122,56 @@ def test_grabbing():
   for sentence in sentences:
     print(f"- {sentence}")
 
+def get_sheet_dir_link(row_id:int, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK) -> str:
+  workbook = load_workbook(wb)
+  worksheet = workbook[ws]
+  next_link = worksheet.cell(column=target,row=row_id).value
+  if isinstance(next_link, str) and len(next_link) > 5:
+    logging.info(f"Found: {next_link}")
+    return next_link
+  else:
+    logging.error(f"Encountered an entry with missing or invalid `sec_link` at row: {row_id}")
+    return next_link
+
 def test_10k_link():
   with open("dir_0001555280-21-000098.htm") as local_html:
     link = get_dir_10k_link(BeautifulSoup(local_html, "html.parser"))
     print(link)
+
+def write_sentence_stats(row_id:int, sentences:list, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME):
+  workbook = load_workbook(wb)
+  worksheet = workbook[ws]
+  try:
+    worksheet.cell(
+      column  = COLUMN_D_WORDCOUNT,
+      row     = row_id,
+      value   = len(sentences)
+    )
+    worksheet.cell(
+      column  = COLUMN_D_SENTENCES,
+      row     = row_id,
+      value   = "\n".join(sentences)
+    ).alignment = Alignment(wrapText=True)
+  except Exception as e:
+    workbook.save(wb)
+    raise e
+  workbook.save(wb)
+
+def full_pipe_test():
+  # using last item in excel file
+  row_id = 4239
+  # grab the sec-link (using function) (NEW) (finds link in sheet)
+  dir_link = get_sheet_dir_link(row_id)
+  # downloads dir page, loads page for processing, access sec.gov (using function)
+  dir_page = BeautifulSoup(get_page_rate_limited(dir_link),"html.parser")
+  # get the doc_link (using function), extracts 10k link
+  clean_10k_link = get_dir_10k_link(dir_page)
+  # downloads 10k, download the doc (using function), Cleans up the 10k
+  clean_10k = get_page_rate_limited(clean_10k_link).body.get_text().strip()
+  # scan the doc (using function)
+  sentences = get_diversity_instances(clean_10k)
+  # write results (using function) (NEW)
+  write_sentence_stats(4239,sentences)
 
 if __name__ == "__main__":
   # test_write()
@@ -134,5 +181,6 @@ if __name__ == "__main__":
   # test_requests()
   # access_rate_limited_api(SecLink("https://www.sec.gov/ix?doc=/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm"))
   # test_grabbing()
-  test_10k_link()
+  # test_10k_link()
+  full_pipe_test()
   pass
