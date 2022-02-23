@@ -1,6 +1,9 @@
 # SEC Scraper Specific
 kai-file.xlsx
+secrets.json
 secrets.txt
+secrets.yml
+secrets.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
