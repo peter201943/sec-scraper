@@ -1,25 +1,7 @@
 
 import csv
 from pathlib import Path
-try:
-  from openpyxl import load_workbook
-except:
-  done = False
-  while not done:
-    patch_answer = input("Module Missing: `openpyxl` Attempt to Install? (Y/N): ")
-    if patch_answer in ["Y","y","N","n"]:
-      done = True
-    else:
-      print("Invalid response, try again")
-  if patch_answer in ["n","N"]:
-    print("Please install the `openpyxl` module manually using PIP: https://realpython.com/what-is-pip/")
-    exit()
-  import sys
-  import subprocess
-  python = sys.executable
-  subprocess.check_call([python, '-m', 'pip', 'install', "openpyxl"], stdout=subprocess.DEVNULL)
-  print("Please rerun this file, module should be installed")
-  exit()
+from openpyxl import load_workbook
 
 original_path = "input.csv"
 dirlinks_path = "temp/dirlinks.csv"
