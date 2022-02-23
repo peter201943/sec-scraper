@@ -25,7 +25,7 @@ logging.basicConfig(
 
 WORKBOOK_NAME           = "kai-file.xlsx"
 WORKSHEET_NAME          = "export"
-COLUMN_MAIN             = 'A' # NOTICE that this is only used down in "overwrite_all_stats" for ONE CASE! (this is due to the inconsistent API)
+COLUMN_MAIN             = 'A' # NOTICE that this is only used down in "update_all_stats" for ONE CASE! (this is due to the inconsistent API)
 COLUMN_SEC_LINK         = 9
 COLUMN_D_WORDCOUNT      = 11
 COLUMN_D_SENTENCES      = 12
@@ -59,7 +59,7 @@ class SecLink():
     if self.address[0:15] == "/Archives/edgar":
       self.address = "https://www.sec.gov" + self.address
     self.fixed = True
-    logging.info(f"fixed link from: {old_address} to: {self.address}")
+    logging.info(f"`SecLink.fix` fixed link from: {old_address} to: {self.address}")
   def __str__(self):
     return self.address
   def __repr__(self):
@@ -68,7 +68,7 @@ class SecLink():
 @sleep_and_retry
 @limits(calls=MAX_CALLS_PER_SECOND, period=TEN_SECONDS)
 def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
-  logging.info(f"`get_page_rate_limited`: {link}")
+  logging.info(f"`get_page_rate_limited` downloading: {link}")
   resp = requests.get(link, headers=headers)
   html = resp.text
   return BeautifulSoup(html, "html.parser")
@@ -78,10 +78,10 @@ def get_sheet_dir_link(row_id:int, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, target=C
   worksheet = workbook[ws]
   next_link = worksheet.cell(column=target,row=row_id).value
   if isinstance(next_link, str) and len(next_link) > 5:
-    logging.info(f"Found: {next_link}")
+    logging.info(f"`get_sheet_dir_link` found: {next_link}")
     return next_link
   else:
-    logging.error(f"Encountered an entry with missing or invalid `sec_link` at row: {row_id}")
+    logging.error(f"`get_sheet_dir_link` encountered an entry with missing or invalid `sec_link` at row: {row_id}")
     return next_link
 
 def get_dir_10k_link(page_dir:BeautifulSoup) -> str:
@@ -93,7 +93,7 @@ def get_dir_10k_link(page_dir:BeautifulSoup) -> str:
     except:
       continue
   if link_10k == "":
-    raise Exception("Encountered an entry with no `10k_link`")
+    raise Exception("`get_dir_10k_link` encountered an entry with no `10k_link`")
   return link_10k
 
 def get_diversity_instances(plaintext:str) -> list:
@@ -130,42 +130,42 @@ def write_sentence_stats(row_id:int, sentences:list, wb=WORKBOOK_NAME, ws=WORKSH
   workbook.save(wb)
 
 def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK, coname=COLUMN_CONAME):
-  logging.info("beginning `overwrite_all_stats`")
+  logging.info("`update_all_stats` started")
   workbook = load_workbook(wb)
   worksheet = workbook[ws]
   items = len(worksheet[idc])
   logging.info(f"running script for {items} items")
   for row_id in range(ROW_START,items):
     company_name = worksheet.cell(column=coname,row=row_id).value
-    logging.info(f"Updating diversity statistics for row {row_id} ({company_name})")
+    logging.info(f"`update_all_stats` NEXT row {row_id} (\"{company_name}\")")
     try:
       d_wordcount = worksheet.cell(column = COLUMN_D_WORDCOUNT, row = row_id).value
       d_sentences = worksheet.cell(column = COLUMN_D_SENTENCES, row = row_id).value
       if d_wordcount != "" and int(d_wordcount) > 0 and len(d_sentences) > 50:
-        logging.info(f"Skipping row {row_id}, appears to already be complete")
+        logging.info(f"`is_complete` SKIPPED row {row_id}, appears to already be complete")
         continue
     except Exception as e:
-      logging.info(f"Skipping row {row_id}, could not determine completion status of entry")
+      logging.error(f"`is_complete` SKIPPED row {row_id}, could not determine completion status of entry")
       continue
     dir_link = worksheet.cell(column=target,row=row_id).value
     if not isinstance(dir_link, str) or not len(dir_link) > 5:
-      logging.error(f"SKIPPED row: {row_id} (Encountered an entry with missing or invalid `sec_link`)")
+      logging.error(f"`get_sheet_dir_link` SKIPPED row: {row_id} (Encountered an entry with missing or invalid `sec_link`)")
       continue
     dir_page        = get_page_rate_limited(dir_link)
     try:
       clean_10k_link  = get_dir_10k_link(dir_page)
     except Exception as e:
-      logging.error(f"`get_dir_10k_link` could not find 10-k link for row {row_id}")
+      logging.error(f"`get_dir_10k_link` SKIPPED row {row_id}, could not find 10-k link")
       continue
     try:
       clean_10k       = get_page_rate_limited(clean_10k_link).body.get_text().strip().replace("\n"," ") # removing any newlines as well
     except Exception as e:
-      logging.error(f"`update_all_stats.cleanup` FAILED, Skipping row {row_id}")
+      logging.error(f"`update_all_stats.cleanup` SKIPPED row {row_id} due to unknown error")
       continue
     try:
       sentences       = get_diversity_instances(clean_10k)
     except:
-      logging.error(f"`get_diversity_instances` FAILED, skipping row {row_id}")
+      logging.error(f"`get_diversity_instances` SKIPPED row {row_id} due to unknown error")
       continue
     try:
       worksheet.cell(
@@ -179,11 +179,12 @@ def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, targe
         value   = "\n".join(sentences)
       ).alignment = Alignment(wrapText=True)
     except Exception as e:
-      logging.critical(f"Final Statistics Writing Interrupted (`write_sentence_stats`), attempting to save (failure on row: {row_id})\nCancelling future writes, PLEASE INSPECT FILE MANUALLY FOR ERRORS")
+      logging.critical(f"`write_sentence_stats` CRASHED on final statistics writing, attempting to save (failure on row: {row_id})\nCancelling future writes, PLEASE INSPECT FILE MANUALLY FOR ERRORS")
       workbook.save(wb)
       raise e
-    logging.info(f"Saved sentence statistics for row: {row_id}")
+    logging.info(f"`write_sentence_stats` Saved sentence statistics for row: {row_id}")
     workbook.save(wb)
+  logging.info("`update_all_stats` finished")
 
 if __name__ == "__main__":
   update_all_stats()
