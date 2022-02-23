@@ -65,6 +65,8 @@ def test_10k_link():
     print(link)
 
 def full_pipe_test():
+  # log it
+  logging.info("beginning `full_pipe_test`")
   # using last item in excel file
   row_id = 4239
   # grab the sec-link (using function) (NEW) (finds link in sheet)

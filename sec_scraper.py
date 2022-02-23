@@ -11,6 +11,8 @@ from    openpyxl.styles import Alignment
 from    bs4             import BeautifulSoup
 from    ratelimit       import limits, RateLimitException, sleep_and_retry
 
+logging.basicConfig(level=logging.DEBUG)
+
 WORKBOOK_NAME           = "kai-file.xlsx"
 WORKSHEET_NAME          = "export"
 COLUMN_MAIN             = 1
@@ -26,8 +28,9 @@ HEADERS                 = json.load(open("secrets.json"))["sec_request_headers"]
 
 class SecLink():
   """
-  Bad: `https://www.sec.gov/ix?doc=/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
-  Fix: `https://www.sec.gov/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
+  Bad:  `https://www.sec.gov/ix?doc=/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
+  Bad:  `Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
+  Fix:  `https://www.sec.gov/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
   """
   def __init__(self,address:str = None):
     self.fixed = False
@@ -37,9 +40,15 @@ class SecLink():
     else:
       self.address = ""
   def fix(self):
+    old_address = self.address
     if "ix?doc=/" in self.address:
       self.address = "https://www.sec.gov/" + self.address.split("ix?doc=/")[1]
+    if self.address[0:14] == "Archives/edgar":
+      self.address = "https://www.sec.gov/" + self.address
+    if self.address[0:15] == "/Archives/edgar":
+      self.address = "https://www.sec.gov" + self.address
     self.fixed = True
+    logging.info(f"fixed link from: {old_address} to: {self.address}")
   def __str__(self):
     return self.address
   def __repr__(self):
@@ -109,6 +118,7 @@ def write_sentence_stats(row_id:int, sentences:list, wb=WORKBOOK_NAME, ws=WORKSH
   workbook.save(wb)
 
 def overwrite_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK):
+  logging.info("beginning `overwrite_all_stats`")
   workbook = load_workbook(wb)
   worksheet = workbook[ws]
   links = []
