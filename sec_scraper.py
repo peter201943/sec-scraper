@@ -1,5 +1,25 @@
 """
-2022 MIT License Drexel University
+MIT License
+
+Copyright (c) 2022 Peter J. Mangelsdorf
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
 
 import  requests
@@ -12,6 +32,7 @@ from    bs4             import BeautifulSoup
 from    ratelimit       import limits, RateLimitException, sleep_and_retry
 from    datetime        import datetime as __datetime
 from    datetime        import timezone as __timezone
+from    pathlib         import Path
 
 def timename() -> str:
   return str(__datetime.now(__timezone.utc)).replace(" ","T").replace("-00:00","").replace("+00:00","").replace(":",".") + "Z"
@@ -36,6 +57,8 @@ MAX_CALLS_PER_SECOND    = 10
 CHARACTER_SEARCH_RANGE  = 100
 REGEX                   = re.compile(r'\bdiversity\b | \bdiverse\b',flags=re.I | re.X)
 HEADERS                 = json.load(open("secrets.json"))["sec_request_headers"]
+
+Path("logs/").mkdir(parents=True, exist_ok=True)
 
 class SecLink():
   """

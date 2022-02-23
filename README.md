@@ -10,7 +10,6 @@ A simple project to scrape 10-K forms from the US SEC (Securities and Exchange C
 ## Contents
 - [Contents](#contents)
 - [About](#about)
-- [Getting Started](#getting-started)
 - [Usage](#usage)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
@@ -25,39 +24,54 @@ A simple project to scrape 10-K forms from the US SEC (Securities and Exchange C
 - [Acknowledgements](#acknowledgements)
 
 ## About
-TODO
+A simple scraper for some simple statistics gathering on US SEC 10-K forms.
+Coded very poorly, and in need of script cleanup.
 
-## Getting Started
-1. [Download Python](https://www.python.org/)
-2. [Download the project](https://github.com/peter201943/sec-scraper/archive/refs/heads/main.zip)
-3. Open a Command Prompt ([Windows](https://www.pcworld.com/article/395081/open-command-prompt-in-windows.html)) ([Mac](https://www.howtogeek.com/682770/how-to-open-the-terminal-on-a-mac/)) in the Folder
-4. Install the Requirements
+## Usage
+1. Download a decent text editor, such as [VS Code](https://code.visualstudio.com/)
+2. [Download Python](https://www.python.org/)
+3. [Download the project](https://github.com/peter201943/sec-scraper/archive/refs/heads/main.zip)
+4. Open a Command Prompt ([Windows](https://www.pcworld.com/article/395081/open-command-prompt-in-windows.html)) ([Mac](https://www.howtogeek.com/682770/how-to-open-the-terminal-on-a-mac/)) in the Folder
+5. Install the Requirements
     ```bash
     pip install -r requirements.txt
     ```
-5. [Create a `csv` of your Spreadsheet](https://en.wikipedia.org/wiki/Comma-separated_values) (try File > Export on most programs)
-6. Edit [`config.py`](config.py) with:
-    - the names of spreadsheet columns
+6. Copy your input file (Excel Workbook) into the same directory as the script
+7. Edit [`sec_scraper.py`](sec_scraper.py) with:
+    - the numbers of spreadsheet columns
     - the names of files
     - the text-search regexes
     - any additional parameters
-7. Run `python sec_scrape.py`
-8. Find your results in the output file
-
-## Usage
-TODO
+8. Create a `secrets.json` with the following contents:
+    ```json
+    {
+        "sec_request_headers":
+        {
+            "User-Agent":       "YOUR INSTITUTION, YOUR EMAIL",
+            "Accept-Encoding":  "gzip, deflate",
+            "Host":             "www.sec.gov"
+        }
+    }
+    ```
+9. Run the script
+    ```bash
+    python sec_scrape.py
+    ```
+10. Find your results in the original file
 
 ## Roadmap
-See the **[Notes](notes)** folder for current status.
-This is not intended to be a long-running project.
+- See the **[Notes](notes)** folder for current status.  
+  This is not intended to be a long-running project.  
+- Significantly better documentation of the code needed
+- Significantly better breakdown of code into smaller functions needed
+- Still very buggy/many edge cases not addressed
 
 ## Contributing
 
 ### Prerequisites
-- [Git for your Operating System](https://git-scm.com/)
-- A decent text editor, such as [VS Code](https://code.visualstudio.com/)
+- [Download Git for your Operating System](https://git-scm.com/)
 - [General Python Knowledge](https://www.youtube.com/watch?v=rfscVS0vtbw)
-- [Python Web Scraping](https://www.youtube.com/watch?v=ALizgnSFTwQ)
+- [How to Web Scrape the SEC | Part 1](https://www.youtube.com/watch?v=-7I7OAC6ih8)
 - [Python Regexes](https://www.youtube.com/watch?v=K8L6KVGG-7o)
 
 ### Installation
@@ -80,16 +94,19 @@ This is not intended to be a long-running project.
     ```
 
 ### Major Files
-- **[`config.py`](config.py)** handles file system and project variables
-- **[`sec_scraper.py`](sec_scraper.py)** handles command-line invocation
-- **[`scraper.py`](scraper.py)** handles the actual task of scraping and writing
+- **[`sec_scraper.py`](sec_scraper.py)** Configuration, definition, etcetera. The meat of the project.
+- **[`tests.py`](tests.py)** Small incremental steps to learn how each part works.
 
 ### Accepting Changes
 This is a low-priority project for peter201943 and as such pull requests are not likely to be accepted.
 You will be better served by forking it and continuing development of it on your own.
 
 ## License
-Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
+Code distributed under the [MIT License](https://opensource.org/licenses/MIT). See [`LICENSE`](LICENSE) for more information.
+
+Documentation distributed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/).
+
+This document released under [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/) by Peter J. Mangelsdorf.
 
 ## Contact
 Peter James Mangelsdorf  
