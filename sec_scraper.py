@@ -144,11 +144,11 @@ def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, targe
       if isinstance(d_wordcount,int):
         if d_wordcount == 0 and isinstance(d_sentences,str) and len(d_sentences) == 0:
           logging.debug(f"sec_scraper.is_complete: row {row_id} appears to already be complete")
-          logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
+          logging.debug(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
           continue
         elif d_wordcount > 0 and isinstance(d_sentences,str) and len(d_sentences) > 50:
           logging.debug(f"sec_scraper.is_complete: row {row_id} appears to already be complete")
-          logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
+          logging.debug(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
           continue
         else:
           logging.debug(f"sec_scraper.is_complete: row {row_id} has errors in `COLUMN_D_SENTENCES` ({COLUMN_D_SENTENCES}), will overwrite")
