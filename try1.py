@@ -22,8 +22,7 @@ TEN_SECONDS             = 10 # Out of decency, using 10 seconds as opposed to 1 
 MAX_CALLS_PER_SECOND    = 10
 CHARACTER_SEARCH_RANGE  = 100
 REGEX                   = 'divers' # for now, just using a simple search string
-
-HEADERS = json.load(open("secrets.json"))["sec_request_headers"]
+HEADERS                 = json.load(open("secrets.json"))["sec_request_headers"]
 
 class SecLink():
   """
@@ -112,7 +111,12 @@ def test_grabbing():
   print("sentences:")
   for sentence in sentences:
     print(f"- {sentence}")
-  
+
+def test_10k_link():
+  with open("dir_0001555280-21-000098.htm") as local_html:
+    get_dir_10k_link(BeautifulSoup(local_html, "html.parser"))
+  pass
+
 if __name__ == "__main__":
   # test_write()
   # test_read()
@@ -120,5 +124,6 @@ if __name__ == "__main__":
   # test_link()
   # test_requests()
   # access_rate_limited_api(SecLink("https://www.sec.gov/ix?doc=/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm"))
-  test_grabbing()
+  # test_grabbing()
+  test_10k_link()
   pass
