@@ -141,13 +141,19 @@ def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, targe
     try:
       d_wordcount = worksheet.cell(column = COLUMN_D_WORDCOUNT, row = row_id).value
       d_sentences = worksheet.cell(column = COLUMN_D_SENTENCES, row = row_id).value
-      if d_wordcount != "" and d_wordcount.isdigit():
-        if int(d_wordcount) > 0 and len(d_sentences) > 50:
+      if isinstance(d_wordcount,int):
+        if d_wordcount == 0 and isinstance(d_sentences,str) and len(d_sentences) == 0:
           logging.debug(f"sec_scraper.is_complete: row {row_id} appears to already be complete")
           logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
           continue
+        elif d_wordcount > 0 and isinstance(d_sentences,str) and len(d_sentences) > 50:
+          logging.debug(f"sec_scraper.is_complete: row {row_id} appears to already be complete")
+          logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
+          continue
+        else:
+          logging.debug(f"sec_scraper.is_complete: row {row_id} has errors in `COLUMN_D_SENTENCES` ({COLUMN_D_SENTENCES}), will overwrite")
       else:
-        logging.debug(f"sec_scraper.is_complete: row {row_id} has errors in `COLUMN_D_WORDCOUNT` ({COLUMN_D_WORDCOUNT}), will overwrite")
+        logging.debug(f"sec_scraper.is_complete: row {row_id} has errors in `COLUMN_D_SENTENCES` ({COLUMN_D_SENTENCES}), will overwrite")
     except Exception as e:
       logging.error(f"sec_scraper.is_complete: crashed on determining completion status of row {row_id}")
       logging.error(f"sec_scraper.is_complete: {e}")
