@@ -130,45 +130,55 @@ def write_sentence_stats(row_id:int, sentences:list, wb=WORKBOOK_NAME, ws=WORKSH
   workbook.save(wb)
 
 def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK, coname=COLUMN_CONAME):
-  logging.info("`update_all_stats` started")
+  logging.info("sec_scraper.update_all_stats: started")
   workbook = load_workbook(wb)
   worksheet = workbook[ws]
   items = len(worksheet[idc])
-  logging.info(f"running script for {items} items")
+  logging.debug(f"sec_scraper.update_all_stats: running script for {items} items")
   for row_id in range(ROW_START,items):
     company_name = worksheet.cell(column=coname,row=row_id).value
-    logging.info(f"`update_all_stats` NEXT row {row_id} (\"{company_name}\")")
+    logging.debug(f"sec_scraper.update_all_stats: NEXT row {row_id} (\"{company_name}\")")
     try:
       d_wordcount = worksheet.cell(column = COLUMN_D_WORDCOUNT, row = row_id).value
       d_sentences = worksheet.cell(column = COLUMN_D_SENTENCES, row = row_id).value
       if d_wordcount != "" and d_wordcount.isdigit():
         if int(d_wordcount) > 0 and len(d_sentences) > 50:
-          logging.info(f"`is_complete` SKIPPED row {row_id}, appears to already be complete")
+          logging.debug(f"sec_scraper.is_complete: row {row_id} appears to already be complete")
+          logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
           continue
       else:
-        logging.info(f"`is_complete` row {row_id} has errors in `COLUMN_D_WORDCOUNT` ({COLUMN_D_WORDCOUNT}), will overwrite")
+        logging.debug(f"sec_scraper.is_complete: row {row_id} has errors in `COLUMN_D_WORDCOUNT` ({COLUMN_D_WORDCOUNT}), will overwrite")
     except Exception as e:
-      logging.error(f"`is_complete` SKIPPED row {row_id}, could not determine completion status of entry")
+      logging.error(f"sec_scraper.is_complete: crashed on determining completion status of row {row_id}")
+      logging.error(f"sec_scraper.is_complete: {e}")
+      logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
       continue
     dir_link = worksheet.cell(column=target,row=row_id).value
     if not isinstance(dir_link, str) or not len(dir_link) > 5:
-      logging.error(f"`get_sheet_dir_link` SKIPPED row: {row_id} (Encountered an entry with missing or invalid `sec_link`)")
+      logging.error(f"sec_scraper.get_sheet_dir_link: row {row_id} has missing or invalid `sec_link`")
+      logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
       continue
-    dir_page        = get_page_rate_limited(dir_link)
+    dir_page          = get_page_rate_limited(dir_link)
     try:
       clean_10k_link  = get_dir_10k_link(dir_page)
     except Exception as e:
-      logging.error(f"`get_dir_10k_link` SKIPPED row {row_id}, could not find 10-k link")
+      logging.error(f"sec_scraper.get_dir_10k_link: could not find 10-k link for row {row_id}")
+      logging.error(f"sec_scraper.get_dir_10k_link: {e}")
+      logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
       continue
     try:
       clean_10k       = get_page_rate_limited(clean_10k_link).body.get_text().strip().replace("\n"," ") # removing any newlines as well
     except Exception as e:
-      logging.error(f"`update_all_stats.cleanup` SKIPPED row {row_id} due to unknown error")
+      logging.error(f"sec_scraper.cleanup: could not cleanup row {row_id} body")
+      logging.error(f"sec_scraper.cleanup: {e}")
+      logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
       continue
     try:
       sentences       = get_diversity_instances(clean_10k)
-    except:
-      logging.error(f"`get_diversity_instances` SKIPPED row {row_id} due to unknown error")
+    except Exception as e:
+      logging.error(f"sec_scraper.get_diversity_instances: unknown error")
+      logging.error(f"sec_scraper.get_diversity_instances: {e}")
+      logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
       continue
     try:
       worksheet.cell(
@@ -182,12 +192,15 @@ def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, targe
         value   = "\n".join(sentences)
       ).alignment = Alignment(wrapText=True)
     except Exception as e:
-      logging.critical(f"`write_sentence_stats` CRASHED on final statistics writing, attempting to save (failure on row: {row_id})\nCancelling future writes, PLEASE INSPECT FILE MANUALLY FOR ERRORS")
+      logging.critical(f"sec_scraper.write_sentence_stats: CRASHED on final statistics writing, attempting to save (failure on row: {row_id})")
+      logging.critical(f"sec_scraper.write_sentence_stats: {e}")
+      logging.critical(f"sec_scraper.write_sentence_stats: Cancelling future writes, PLEASE INSPECT FILE MANUALLY FOR ERRORS")
       workbook.save(wb)
-      raise e
-    logging.info(f"`write_sentence_stats` Saved sentence statistics for row: {row_id}")
+      logging.error("sec_scraper.update_all_stats: exiting early")
+      exit()
+    logging.debug(f"sec_scraper.write_sentence_stats: Saved sentence statistics for row: {row_id}")
     workbook.save(wb)
-  logging.info("`update_all_stats` finished")
+  logging.info("sec_scraper.update_all_stats: finished")
 
 if __name__ == "__main__":
   update_all_stats()
