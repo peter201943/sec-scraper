@@ -17,15 +17,15 @@ def timename() -> str:
   return str(__datetime.now(__timezone.utc)).replace(" ","T").replace("-00:00","").replace("+00:00","").replace(":",".") + "Z"
 
 logging.basicConfig(
-  filename=f'{timename()}.log', 
-  encoding='utf-8', 
-  level=logging.DEBUG,
-  format='[%(asctime)s] %(levelname)s %(message)s'
+  filename  = f'logs/{timename()}.log', 
+  encoding  = 'utf-8',
+  level     = logging.DEBUG,
+  format    = '[%(asctime)s] %(levelname)s %(message)s'
 )
 
 WORKBOOK_NAME           = "kai-file.xlsx"
 WORKSHEET_NAME          = "export"
-COLUMN_MAIN             = 1
+COLUMN_MAIN             = 'A' # NOTICE that this is only used down in "overwrite_all_stats" for ONE CASE! (this is due to the inconsistent API)
 COLUMN_SEC_LINK         = 9
 COLUMN_D_WORDCOUNT      = 11
 COLUMN_D_SENTENCES      = 12
@@ -71,7 +71,7 @@ def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
   html = resp.text
   return BeautifulSoup(html, "html.parser")
 
-def get_sheet_dir_link(row_id:int, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK) -> str:
+def get_sheet_dir_link(row_id:int, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, target=COLUMN_SEC_LINK) -> str:
   workbook = load_workbook(wb)
   worksheet = workbook[ws]
   next_link = worksheet.cell(column=target,row=row_id).value
