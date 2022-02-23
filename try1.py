@@ -34,8 +34,10 @@ class SecLink():
     if address is not None:
       self.address = address
       self.fix()
+    else:
+      self.address = ""
   def fix(self):
-    if "https://www.sec.gov/ix?" in self.address:
+    if "ix?doc=/" in self.address:
       self.address = "https://www.sec.gov/" + self.address.split("ix?doc=/")[1]
     self.fixed = True
   def __str__(self):
@@ -87,7 +89,14 @@ def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
   return BeautifulSoup(html, "html.parser")
 
 def get_dir_10k_link(page_dir:BeautifulSoup) -> str:
-  pass
+  link_10k = ""
+  for table_row in page_dir.find_all("tr"):
+    try:
+      if table_row.find_all("td")[1].string in ["10-K", "10K", "10k", "10-k"]:
+        link_10k = SecLink(table_row.find_all('td')[2].a.get('href'))
+    except:
+      continue
+  return link_10k
 
 def get_diversity_instances(plaintext:str) -> list:
   min_distance = 0
@@ -114,8 +123,8 @@ def test_grabbing():
 
 def test_10k_link():
   with open("dir_0001555280-21-000098.htm") as local_html:
-    get_dir_10k_link(BeautifulSoup(local_html, "html.parser"))
-  pass
+    link = get_dir_10k_link(BeautifulSoup(local_html, "html.parser"))
+    print(link)
 
 if __name__ == "__main__":
   # test_write()
