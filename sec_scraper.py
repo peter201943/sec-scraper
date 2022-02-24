@@ -46,7 +46,7 @@ logging.basicConfig(
 
 WORKBOOK_NAME           = "kai-file.xlsx"
 WORKSHEET_NAME          = "export"
-COLUMN_MAIN             = 'A' # NOTICE that this is only used down in "update_all_stats" for ONE CASE! (this is due to the inconsistent API)
+COLUMN_MAIN             = 'A' # NOTICE that this is only used down in "update_workbook" for ONE CASE! (this is due to the inconsistent API)
 COLUMN_SEC_LINK         = 9
 COLUMN_D_WORDCOUNT      = 11
 COLUMN_D_SENTENCES      = 12
@@ -111,7 +111,7 @@ def get_dir_10k_link(page_dir:BeautifulSoup) -> str:
   link_10k = ""
   for table_row in page_dir.find_all("tr"):
     try:
-      if table_row.find_all("td")[1].string in ["10-K", "10K", "10k", "10-k"]:
+      if table_row.find_all("td")[3].string in ["10-K", "10K", "10k", "10-k"]:
         link_10k = SecLink(table_row.find_all('td')[2].a.get('href'))
     except:
       continue
@@ -152,26 +152,32 @@ def write_sentence_stats(row_id:int, sentences:list, wb=WORKBOOK_NAME, ws=WORKSH
   logging.info(f"Saved sentence statistics for row: {row_id}")
   workbook.save(wb)
 
-def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK, coname=COLUMN_CONAME):
-  logging.info("sec_scraper.update_all_stats: started")
+def update_workbook(row_ids=None, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK, coname=COLUMN_CONAME):
+  logging.info("sec_scraper.update_workbook: started")
   workbook = load_workbook(wb)
   worksheet = workbook[ws]
   items = len(worksheet[idc])
-  logging.debug(f"sec_scraper.update_all_stats: running script for {items} items")
-  for row_id in range(ROW_START,items):
+  if not row_ids:
+    row_ids = range(ROW_START,items + 1)
+  if isinstance(row_ids,int):
+    row_ids = [row_ids]
+  logging.debug(f"sec_scraper.update_workbook: running script for {len(row_ids)} items")
+  for row_id in row_ids:
+    if row_id < ROW_START:
+      continue
     company_name = worksheet.cell(column=coname,row=row_id).value
-    logging.debug(f"sec_scraper.update_all_stats: NEXT row {row_id} (\"{company_name}\")")
+    logging.debug(f"sec_scraper.update_workbook: NEXT row {row_id} (\"{company_name}\")")
     try:
       d_wordcount = worksheet.cell(column = COLUMN_D_WORDCOUNT, row = row_id).value
       d_sentences = worksheet.cell(column = COLUMN_D_SENTENCES, row = row_id).value
       if isinstance(d_wordcount,int):
         if d_wordcount == 0 and isinstance(d_sentences,str) and len(d_sentences) == 0:
           logging.debug(f"sec_scraper.is_complete: row {row_id} appears to already be complete")
-          logging.debug(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
+          logging.debug(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
           continue
         elif d_wordcount > 0 and isinstance(d_sentences,str) and len(d_sentences) > 50:
           logging.debug(f"sec_scraper.is_complete: row {row_id} appears to already be complete")
-          logging.debug(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
+          logging.debug(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
           continue
         else:
           logging.debug(f"sec_scraper.is_complete: row {row_id} has errors in `COLUMN_D_SENTENCES` ({COLUMN_D_SENTENCES}), will overwrite")
@@ -180,12 +186,12 @@ def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, targe
     except Exception as e:
       logging.error(f"sec_scraper.is_complete: crashed on determining completion status of row {row_id}")
       logging.error(f"sec_scraper.is_complete: {e}")
-      logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
+      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
       continue
     dir_link = worksheet.cell(column=target,row=row_id).value
     if not isinstance(dir_link, str) or not len(dir_link) > 5:
       logging.error(f"sec_scraper.get_sheet_dir_link: row {row_id} has missing or invalid `sec_link`")
-      logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
+      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
       continue
     dir_page          = get_page_rate_limited(dir_link)
     try:
@@ -193,21 +199,21 @@ def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, targe
     except Exception as e:
       logging.error(f"sec_scraper.get_dir_10k_link: could not find 10-k link for row {row_id}")
       logging.error(f"sec_scraper.get_dir_10k_link: {e}")
-      logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
+      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
       continue
     try:
       clean_10k       = get_page_rate_limited(clean_10k_link).body.get_text().strip().replace("\n"," ") # removing any newlines as well
     except Exception as e:
       logging.error(f"sec_scraper.cleanup: could not cleanup row {row_id} body")
       logging.error(f"sec_scraper.cleanup: {e}")
-      logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
+      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
       continue
     try:
       sentences       = get_diversity_instances(clean_10k)
     except Exception as e:
       logging.error(f"sec_scraper.get_diversity_instances: unknown error")
       logging.error(f"sec_scraper.get_diversity_instances: {e}")
-      logging.error(f"sec_scraper.update_all_stats: SKIPPED row {row_id}")
+      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
       continue
     try:
       worksheet.cell(
@@ -225,12 +231,12 @@ def update_all_stats(wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, targe
       logging.critical(f"sec_scraper.write_sentence_stats: {e}")
       logging.critical(f"sec_scraper.write_sentence_stats: Cancelling future writes, PLEASE INSPECT FILE MANUALLY FOR ERRORS")
       workbook.save(wb)
-      logging.error("sec_scraper.update_all_stats: exiting early")
+      logging.error("sec_scraper.update_workbook: exiting early")
       exit()
     logging.debug(f"sec_scraper.write_sentence_stats: Saved sentence statistics for row: {row_id}")
     workbook.save(wb)
-  logging.info("sec_scraper.update_all_stats: finished")
+  logging.info("sec_scraper.update_workbook: finished")
 
 if __name__ == "__main__":
-  update_all_stats()
+  update_workbook()
   pass
