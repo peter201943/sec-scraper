@@ -119,7 +119,7 @@ def log_exceptions(task:callable):
       raise
   return action
 
-## Classes
+## Utilities
 
 class SecLink():
   """
@@ -128,7 +128,8 @@ class SecLink():
   Bad:  Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm
   Fix:  https://www.sec.gov/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm
   """
-  def __init__(self,address:str = None):
+  @log_exceptions
+  def __init__(self,address:str = None) -> None:
     """
     :param address: the URL from an SEC webpage
     """
@@ -139,7 +140,10 @@ class SecLink():
     else:
       self.address = ""
   @log_exceptions
-  def fix(self):
+  def fix(self) -> None:
+    """
+    With a set `address`, will attempt to fix the address and set it's status to "fixed"
+    """
     old_address = self.address
     # If it looks like an iXBRL address, grab the second-half of it and make a new old-style address
     if "ix?doc=/" in self.address:
@@ -157,12 +161,10 @@ class SecLink():
       raise ValueError(f"Given strange address, could not determine status: {old_address}")
     self.fixed = True
     logging.info(f"fixed link from: {old_address} to: {self.address}")
-  def __str__(self):
+  def __str__(self) -> str:
     return self.address
-  def __repr__(self):
+  def __repr__(self) -> str:
     return f"<SecLink ({'fixed' if self.fixed else 'broken'}) \"{self.address}\">"
-
-## Utilities
 
 @log_exceptions
 @sleep_and_retry
@@ -227,7 +229,7 @@ def get_dir_10k_link(page_dir:BeautifulSoup) -> str:
   return link_10k
 
 @log_exceptions
-def get_diversity_instances(plaintext:str, regex=REGEX, search_range=CHARACTER_SEARCH_RANGE) -> list:
+def get_diversity_instances(plaintext:str, regex:re.Pattern=REGEX, search_range:int=CHARACTER_SEARCH_RANGE) -> list:
   """
   Find all sentences which contain an instance of some word
   :param plaintext: The stripped (no HTML elements) representation of a webpage ("plaint text")
@@ -248,29 +250,82 @@ def get_diversity_instances(plaintext:str, regex=REGEX, search_range=CHARACTER_S
   return sentences
 
 @log_exceptions
-def write_sentence_stats(row_id:int, sentences:list, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME):
-  workbook = load_workbook(wb)
-  worksheet = workbook[ws]
-  try:
-    worksheet.cell(
-      column  = COLUMN_D_WORDCOUNT,
-      row     = row_id,
-      value   = len(sentences)
-    )
-    worksheet.cell(
-      column  = COLUMN_D_SENTENCES,
-      row     = row_id,
-      value   = "\n".join(sentences)
-    ).alignment = Alignment(wrapText=True)
-  except Exception as e:
-    logging.critical(f"Final Statistics Writing Interrupted (`write_sentence_stats`), attempting to save (failure on row: {row_id})")
-    workbook.save(wb)
-    raise e
-  logging.info(f"Saved sentence statistics for row: {row_id}")
-  workbook.save(wb)
+def write_sentence_stats(worksheet, row_id:int, sentences:list) -> None:
+  """
+  Calculates, formats, and stores sentence statistics into the worksheet
+  NOTE does NOT save to file/disc!
+  :param worksheet: Where to store the sentence statistics
+  :param row_id: Which company the statistics are for
+  :param sentences: The found sentences to extract statistics from
+  """
+  worksheet.cell(
+    column  = COLUMN_D_WORDCOUNT,
+    row     = row_id,
+    value   = len(sentences)
+  )
+  worksheet.cell(
+    column  = COLUMN_D_SENTENCES,
+    row     = row_id,
+    value   = "\n".join(sentences)
+  ).alignment = Alignment(wrapText=True)
+  logging.info(f"Added sentence statistics for row: {row_id}")
 
-def update_workbook(row_ids=None, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUMN_MAIN, target=COLUMN_SEC_LINK, coname=COLUMN_CONAME):
-  logging.info("sec_scraper.update_workbook: started")
+@log_exceptions
+def cleanup_page(link:str) -> str:
+  """
+  Downloads the plaintext of a webpage
+  :link: url of somewebpage
+  :return: Plaintext body of a webpage
+  """
+  return get_page_rate_limited(
+    link
+  ).body.get_text(    # Get the text of a webpage
+  ).strip(            # Remove all HTML elements
+  ).replace("\n"," ") # Remove any newlines as well
+
+@log_exceptions
+def is_complete(worksheet, row_id:int, c_wordcount:int=COLUMN_D_WORDCOUNT, c_sentence:int=COLUMN_D_SENTENCES) -> bool:
+  """
+  Checks if a specific row has valid and complete sentence statistics
+  :param worksheet: Loaded Python Worksheet representation
+  :param row_id: Which company to check
+  :param c_wordcount: Which column the wordcount is in
+  :param c_sentence: Which column the sentence is in
+  :return: Whether the row has valid statistics or not
+  """
+  d_wordcount = worksheet.cell(column = c_wordcount, row = row_id).value
+  d_sentences = worksheet.cell(column = c_sentence, row = row_id).value
+  # When a number is present
+  if isinstance(d_wordcount,int):
+    # Edge Case: Exactly no sentences have previously been found
+    if d_wordcount == 0 and isinstance(d_sentences,str) and len(d_sentences) == 0:
+      logging.debug(f"row {row_id} appears to already be complete")
+      return True
+    # Most Cases: Some sentences have been found
+    elif d_wordcount > 0 and isinstance(d_sentences,str) and len(d_sentences) > 50:
+      logging.debug(f"row {row_id} appears to already be complete")
+      return True
+    # Edge Case: Disagreement between `diversity_sentences` and `diversity_wordcount`
+    else:
+      logging.debug(f"row {row_id} has errors in `diversity_sentences` ({c_sentence}), will overwrite")
+      return False
+  # Empty or otherwise, rewrite
+  else:
+    logging.debug(f"row {row_id} has errors in `diversity_wordcount` ({d_wordcount}), will overwrite")
+    return False
+
+@log_exceptions
+def update_workbook(row_ids:list=None, wb:str=WORKBOOK_NAME, ws:str=WORKSHEET_NAME, idc:int=COLUMN_MAIN, target:int=COLUMN_SEC_LINK, coname:int=COLUMN_CONAME) -> None:
+  """
+  Updates an entire notebook with statistics
+  :param row_ids: A list of which rows to update (blank if want to update all)
+  :param wb: Filename of the workbook to open
+  :param ws: String page name of sheet in workbook to open
+  :param idc: Column with the "primary identifier"/"primary key" of all items
+  :param target: Which column to check for links
+  :param coname: Which column contains the company name
+  """
+  logging.info("Started")
   workbook = load_workbook(wb)
   worksheet = workbook[ws]
   items = len(worksheet[idc])
@@ -278,88 +333,39 @@ def update_workbook(row_ids=None, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUM
     row_ids = range(ROW_START,items + 1)
   if isinstance(row_ids,int):
     row_ids = [row_ids]
-  logging.debug(f"sec_scraper.update_workbook: running script for {len(row_ids)} items")
+  logging.debug(f"Running script for {len(row_ids)} items")
   for row_id in row_ids:
-    if row_id < ROW_START:
+    # Skip any rows outside the bounds of the file
+    if row_id < ROW_START or row_id > items:
+      logging.debug(f"Unusual row: {row_id}")
       continue
     company_name = worksheet.cell(column=coname,row=row_id).value
-    logging.debug(f"sec_scraper.update_workbook: NEXT row {row_id} (\"{company_name}\")")
-    # TODO: PUT ALL UNDER ONE GLOBAL TRY
+    logging.debug(f"NEXT row: {row_id} (\"{company_name}\")")
     try:
-      d_wordcount = worksheet.cell(column = COLUMN_D_WORDCOUNT, row = row_id).value
-      d_sentences = worksheet.cell(column = COLUMN_D_SENTENCES, row = row_id).value
-      if isinstance(d_wordcount,int):
-        if d_wordcount == 0 and isinstance(d_sentences,str) and len(d_sentences) == 0:
-          logging.debug(f"sec_scraper.is_complete: row {row_id} appears to already be complete")
-          logging.debug(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
-          continue
-        elif d_wordcount > 0 and isinstance(d_sentences,str) and len(d_sentences) > 50:
-          logging.debug(f"sec_scraper.is_complete: row {row_id} appears to already be complete")
-          logging.debug(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
-          continue
-        else:
-          logging.debug(f"sec_scraper.is_complete: row {row_id} has errors in `COLUMN_D_SENTENCES` ({COLUMN_D_SENTENCES}), will overwrite")
-      else:
-        logging.debug(f"sec_scraper.is_complete: row {row_id} has errors in `COLUMN_D_SENTENCES` ({COLUMN_D_SENTENCES}), will overwrite")
-    except Exception as e:
-      logging.error(f"sec_scraper.is_complete: crashed on determining completion status of row {row_id}")
-      logging.error(f"sec_scraper.is_complete: {e}")
-      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
-      continue
-    try:
+      if is_complete(worksheet,row_id):
+        continue
       dir_link        = get_sheet_dir_link(worksheet,row_id,target)
-    except Exception as e:
-      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
-      continue
-    try:
       dir_page        = get_page_rate_limited(dir_link)
-    except Exception as e:
-      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
-      continue
-    try:
       clean_10k_link  = get_dir_10k_link(dir_page)
-    except Exception as e:
-      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
-      continue
-    try:
-      clean_10k       = get_page_rate_limited(clean_10k_link).body.get_text().strip().replace("\n"," ") # removing any newlines as well
-    except Exception as e:
-      logging.error(f"sec_scraper.cleanup: could not cleanup row {row_id} body")
-      logging.error(f"sec_scraper.cleanup: {e}")
-      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
-      continue
-    try:
+      clean_10k       = cleanup_page(clean_10k_link)
       sentences       = get_diversity_instances(clean_10k)
     except Exception as e:
-      logging.error(f"sec_scraper.get_diversity_instances: unknown error")
-      logging.error(f"sec_scraper.get_diversity_instances: {e}")
-      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
+      logging.error(f"SKIPPED row: {row_id}")
       continue
-    # TODO: PUT GLOBAL EXCEPT HERE
     try:
-      worksheet.cell(
-        column  = COLUMN_D_WORDCOUNT,
-        row     = row_id,
-        value   = len(sentences)
-      )
-      worksheet.cell(
-        column  = COLUMN_D_SENTENCES,
-        row     = row_id,
-        value   = "\n".join(sentences)
-      ).alignment = Alignment(wrapText=True)
+      write_sentence_stats(worksheet, row_id, sentences)
     except Exception as e:
-      logging.critical(f"sec_scraper.write_sentence_stats: CRASHED on final statistics writing, attempting to save (failure on row: {row_id})")
-      logging.critical(f"sec_scraper.write_sentence_stats: {e}")
-      logging.critical(f"sec_scraper.write_sentence_stats: Cancelling future writes, PLEASE INSPECT FILE MANUALLY FOR ERRORS")
-      workbook.save(wb)
-      logging.error("sec_scraper.update_workbook: exiting early")
+      logging.critical(f"CRASHED on final statistics writing for row: {row_id}")
+      logging.critical(f"Cancelling future writes, PLEASE INSPECT FILE MANUALLY FOR ERRORS")
+      logging.critical("Exiting early")
       exit()
-    logging.debug(f"sec_scraper.write_sentence_stats: Saved sentence statistics for row: {row_id}")
     workbook.save(wb)
-  logging.info("sec_scraper.update_workbook: finished")
+    logging.debug(f"Saved Workbook")
+  logging.info("Finished")
+
+## Main
 
 # Standard Python Meta-Manipulation to only execute the following code if it is invoked from the command line
 if __name__ == "__main__":
-  # update_workbook()
-  temp_error_scenario()
+  update_workbook()
   pass
