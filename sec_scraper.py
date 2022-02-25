@@ -38,10 +38,10 @@ def timename() -> str:
   return str(__datetime.now(__timezone.utc)).replace(" ","T").replace("-00:00","").replace("+00:00","").replace(":",".") + "Z"
 
 logging.basicConfig(
-  filename  = f'logs/{timename()}.log', 
+  filename  = f'logs/{timename()}.csv',
   encoding  = 'utf-8',
   level     = logging.DEBUG,
-  format    = '[%(asctime)s] %(levelname)s\t%(message)s'
+  format    = '"%(asctime)s",%(levelname)s,"%(message)s"'
 )
 
 WORKBOOK_NAME           = "kai-file.xlsx"
