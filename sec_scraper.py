@@ -104,18 +104,17 @@ logging.info(f"Variables: {dict(((k, globals()[k]) for k in ('WORKBOOK_NAME', 'W
 # Quick test to see how log handles errors
 import sys, traceback
 
-def generate_error():
+def temp_generate_error():
   raise ValueError("nope")
 
-def handle_error():
+def temp_handle_error():
   try:
-    generate_error()
+    temp_generate_error()
   except Exception as e:
     error_frame = traceback.extract_tb(sys.exc_info()[-1], 2)[1]
     logging.info(f"{error_frame.name}:{error_frame.lineno}: {repr(e)} (using custom)")
     logging.exception("(using logging.exception)")
-
-exit()
+    exit()
 
 ## Classes
 
@@ -319,6 +318,8 @@ def update_workbook(row_ids=None, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUM
     workbook.save(wb)
   logging.info("sec_scraper.update_workbook: finished")
 
+# Standard Python Meta-Manipulation to only execute the following code if it is invoked from the command line
 if __name__ == "__main__":
-  update_workbook()
+  # update_workbook()
+  temp_handle_error()
   pass
