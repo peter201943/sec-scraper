@@ -44,6 +44,9 @@ from    datetime        import datetime as __datetime
 from    datetime        import timezone as __timezone
 # Allows reading and writing of Filesystem folders across all operating systems
 from    pathlib         import Path
+# Allows introspection into errors at runtime
+import  sys
+import  traceback
 
 ## Logging
 
@@ -100,28 +103,21 @@ HEADERS                 = json.load(open("secrets.json"))["sec_request_headers"]
 # Log the variable values
 logging.info(f"Variables: {dict(((k, globals()[k]) for k in ('WORKBOOK_NAME', 'WORKSHEET_NAME', 'COLUMN_MAIN', 'COLUMN_SEC_LINK', 'COLUMN_D_WORDCOUNT', 'COLUMN_D_SENTENCES', 'COLUMN_CONAME', 'ROW_START', 'WAIT_SECONDS', 'MAX_CALLS_PER_SECOND', 'CHARACTER_SEARCH_RANGE', 'REGEX')))}")
 
-## TEMP
-# Quick test to see how log handles errors
-import sys, traceback
-
-def temp_generate_error():
-  raise ValueError("nope")
-
-def temp_handle_error(e:Exception):
-  breakpoint()
-  # error_frame = traceback.extract_tb(sys.exc_info()[-1], 2)[1]
-  # logging.error(f"{error_frame.name}:{error_frame.lineno}: {repr(e)} (using custom)")
-  # logging.exception("(using logging.exception)")
-  pass
-
-def temp_error_scenario():
-  print("scenario start")
-  try:
-    temp_generate_error()
-  except Exception as e:
-    temp_handle_error(e)
-  print("scenario over")
-  exit()
+# For logging of errors, introduce a custom wrapper
+def log_exceptions(task:callable):
+  """
+  Log exceptions as they occur (minimal details only)
+  Does not interrupt the exception
+  :param task: some function that may crash
+  """
+  def action(*args,**kwargs):
+    try:
+      return task(*args,**kwargs)
+    except Exception as e:
+      error_frame = traceback.extract_tb(sys.exc_info()[-1], 2)[1]
+      logging.error(f"{error_frame.name}:{error_frame.lineno}: {repr(e)}")
+      raise
+  return action
 
 ## Classes
 
@@ -142,6 +138,7 @@ class SecLink():
       self.fix()
     else:
       self.address = ""
+  @log_exceptions
   def fix(self):
     old_address = self.address
     # If it looks like an iXBRL address, grab the second-half of it and make a new old-style address
