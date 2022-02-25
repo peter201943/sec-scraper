@@ -107,14 +107,21 @@ import sys, traceback
 def temp_generate_error():
   raise ValueError("nope")
 
-def temp_handle_error():
+def temp_handle_error(e:Exception):
+  breakpoint()
+  # error_frame = traceback.extract_tb(sys.exc_info()[-1], 2)[1]
+  # logging.error(f"{error_frame.name}:{error_frame.lineno}: {repr(e)} (using custom)")
+  # logging.exception("(using logging.exception)")
+  pass
+
+def temp_error_scenario():
+  print("scenario start")
   try:
     temp_generate_error()
   except Exception as e:
-    error_frame = traceback.extract_tb(sys.exc_info()[-1], 2)[1]
-    logging.info(f"{error_frame.name}:{error_frame.lineno}: {repr(e)} (using custom)")
-    logging.exception("(using logging.exception)")
-    exit()
+    temp_handle_error(e)
+  print("scenario over")
+  exit()
 
 ## Classes
 
@@ -321,5 +328,5 @@ def update_workbook(row_ids=None, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUM
 # Standard Python Meta-Manipulation to only execute the following code if it is invoked from the command line
 if __name__ == "__main__":
   # update_workbook()
-  temp_handle_error()
+  temp_error_scenario()
   pass
