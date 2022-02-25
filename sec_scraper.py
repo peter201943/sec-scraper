@@ -80,7 +80,7 @@ def start_logging():
   )
   with open(log_filename, "a") as logfile:
     logfile.write('time,event,location,details\n')
-  logging.info("project version: https://github.com/peter201943/sec-scraper/commit/9ad4353bfdf00281de0f4e28419a4ff9c8afdee7")
+  logging.info("project version: https://github.com/peter201943/sec-scraper/commit/94144b1d44ab83edfcc2d5f6701df5d436145a12")
 
 # Initialize the logging
 start_logging()
@@ -101,7 +101,7 @@ REGEX                   = re.compile(r'\bdiversity\b | \bdiverse\b',flags=re.IGN
 HEADERS                 = json.load(open("secrets.json"))["sec_request_headers"]
 
 # Log the constants
-logging.info(f"Variables: {dict(((k, globals()[k]) for k in ('WORKBOOK_NAME', 'WORKSHEET_NAME', 'COLUMN_MAIN', 'COLUMN_SEC_LINK', 'COLUMN_D_WORDCOUNT', 'COLUMN_D_SENTENCES', 'COLUMN_CONAME', 'ROW_START', 'WAIT_SECONDS', 'MAX_CALLS_PER_SECOND', 'CHARACTER_SEARCH_RANGE', 'REGEX')))}")
+logging.debug(f"Variables: {dict(((k, globals()[k]) for k in ('WORKBOOK_NAME', 'WORKSHEET_NAME', 'COLUMN_MAIN', 'COLUMN_SEC_LINK', 'COLUMN_D_WORDCOUNT', 'COLUMN_D_SENTENCES', 'COLUMN_CONAME', 'ROW_START', 'WAIT_SECONDS', 'MAX_CALLS_PER_SECOND', 'CHARACTER_SEARCH_RANGE', 'REGEX')))}")
 
 # For logging of errors, introduce a custom wrapper
 def log_exceptions(task:callable):
