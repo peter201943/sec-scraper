@@ -66,17 +66,18 @@ def start_logging():
   - location (in code) of an event ("who is invoking this event?")
   - details of an event ("why is this thing crashing?")
   Uses the last-written last-commit to indicate log-version/project-version
+  (git rev-parse HEAD)
   """
-  with f'logs/{timename()}.csv' as log_filename:
-    logging.basicConfig(
-      filename  = log_filename,
-      encoding  = 'utf-8',
-      level     = logging.DEBUG,
-      format    = '"%(asctime)s",%(levelname)s,"%(filename)s.%(funcName)s:%(lineno)s","%(message)s"'
-    )
-    with open(log_filename, "a") as logfile:
-      logfile.write('time,event,location,details\n')
-  logging.info("project version: https://github.com/peter201943/sec-scraper/commit/01d26742d5a73664e67c312d44768ea0c6add34e")
+  log_filename = f'logs/{timename()}.csv'
+  logging.basicConfig(
+    filename  = log_filename,
+    encoding  = 'utf-8',
+    level     = logging.DEBUG,
+    format    = '"%(asctime)s",%(levelname)s,"%(filename)s.%(funcName)s:%(lineno)s","%(message)s"'
+  )
+  with open(log_filename, "a") as logfile:
+    logfile.write('time,event,location,details\n')
+  logging.info("project version: https://github.com/peter201943/sec-scraper/commit/d2710b5835f82350203b01d0b45f635a4a3e63b9")
 
 # Initialize the logging
 start_logging()
@@ -99,16 +100,23 @@ HEADERS                 = json.load(open("secrets.json"))["sec_request_headers"]
 # Log the variable values
 logging.info(f"Variables: {dict(((k, globals()[k]) for k in ('WORKBOOK_NAME', 'WORKSHEET_NAME', 'COLUMN_MAIN', 'COLUMN_SEC_LINK', 'COLUMN_D_WORDCOUNT', 'COLUMN_D_SENTENCES', 'COLUMN_CONAME', 'ROW_START', 'WAIT_SECONDS', 'MAX_CALLS_PER_SECOND', 'CHARACTER_SEARCH_RANGE', 'REGEX')))}")
 
+## TEMP
+# Quick test to see how log handles errors
+
+
 ## Classes
 
 class SecLink():
   """
   "Repairs" US SEC internal Edgar links from either fragments or "iXBRL" links to plain "Archive" links
-  Bad:  `https://www.sec.gov/ix?doc=/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
-  Bad:  `Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
-  Fix:  `https://www.sec.gov/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
+  Bad:  https://www.sec.gov/ix?doc=/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm
+  Bad:  Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm
+  Fix:  https://www.sec.gov/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm
   """
   def __init__(self,address:str = None):
+    """
+    :param address: the URL from an SEC webpage
+    """
     self.fixed = False
     if address is not None:
       self.address = address
@@ -117,12 +125,20 @@ class SecLink():
       self.address = ""
   def fix(self):
     old_address = self.address
+    # If it looks like an iXBRL address, grab the second-half of it and make a new old-style address
     if "ix?doc=/" in self.address:
       self.address = "https://www.sec.gov/" + self.address.split("ix?doc=/")[1]
-    if self.address[0:14] == "Archives/edgar":
+    # If it looks like a fragment of an address, make a new old-style address
+    elif self.address[0:14] == "Archives/edgar":
       self.address = "https://www.sec.gov/" + self.address
-    if self.address[0:15] == "/Archives/edgar":
+    # If it looks like a fragment of an address, make a new old-style address
+    elif self.address[0:15] == "/Archives/edgar":
       self.address = "https://www.sec.gov" + self.address
+    # Do nothing if it looks like a regular address
+    elif "https://www.sec.gov/" in self.address:
+      pass
+    else:
+      raise ValueError(f"Given strange address, could not determine status: {old_address}")
     self.fixed = True
     logging.info(f"fixed link from: {old_address} to: {self.address}")
   def __str__(self):
@@ -138,6 +154,9 @@ def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
   """
   Downloads an HTML web page and returns it as a navigable Python object
   Will only start downloading the page if previous calls have not used up the call-budget (number-of-calls over time-in-seconds)
+  :param link: the URL of the page to be downloaded
+  :param headers: client information to be sent to the server hosting the webpage
+  :return: Navigable Python representation of HTML
   """
   logging.info(f"downloading: {link}")
   resp = requests.get(link, headers=headers)
@@ -145,6 +164,8 @@ def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
   return BeautifulSoup(html, "html.parser")
 
 def get_sheet_dir_link(row_id:int, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, target=COLUMN_SEC_LINK) -> str:
+  """
+  """
   workbook = load_workbook(wb)
   worksheet = workbook[ws]
   next_link = worksheet.cell(column=target,row=row_id).value
