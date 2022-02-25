@@ -80,12 +80,12 @@ def start_logging():
   )
   with open(log_filename, "a") as logfile:
     logfile.write('time,event,location,details\n')
-  logging.info("project version: https://github.com/peter201943/sec-scraper/commit/d2710b5835f82350203b01d0b45f635a4a3e63b9")
+  logging.info("project version: https://github.com/peter201943/sec-scraper/commit/9ad4353bfdf00281de0f4e28419a4ff9c8afdee7")
 
 # Initialize the logging
 start_logging()
 
-## Variables
+## Constants
 WORKBOOK_NAME           = "kai-file.xlsx"
 WORKSHEET_NAME          = "export"
 COLUMN_MAIN             = 'A' # NOTICE that this is only used down in "update_workbook" for ONE CASE! (this is due to the inconsistent API)
@@ -100,7 +100,7 @@ CHARACTER_SEARCH_RANGE  = 100
 REGEX                   = re.compile(r'\bdiversity\b | \bdiverse\b',flags=re.IGNORECASE | re.VERBOSE)
 HEADERS                 = json.load(open("secrets.json"))["sec_request_headers"]
 
-# Log the variable values
+# Log the constants
 logging.info(f"Variables: {dict(((k, globals()[k]) for k in ('WORKBOOK_NAME', 'WORKSHEET_NAME', 'COLUMN_MAIN', 'COLUMN_SEC_LINK', 'COLUMN_D_WORDCOUNT', 'COLUMN_D_SENTENCES', 'COLUMN_CONAME', 'ROW_START', 'WAIT_SECONDS', 'MAX_CALLS_PER_SECOND', 'CHARACTER_SEARCH_RANGE', 'REGEX')))}")
 
 # For logging of errors, introduce a custom wrapper
@@ -164,6 +164,7 @@ class SecLink():
 
 ## Utilities
 
+@log_exceptions
 @sleep_and_retry
 @limits(calls=MAX_CALLS_PER_SECOND, period=WAIT_SECONDS)
 def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
@@ -179,43 +180,74 @@ def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
   html = resp.text
   return BeautifulSoup(html, "html.parser")
 
-def get_sheet_dir_link(row_id:int, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, target=COLUMN_SEC_LINK) -> str:
+@log_exceptions
+def get_sheet_dir_link(worksheet, row_id:int, target=COLUMN_SEC_LINK) -> str:
   """
+  Grabs the directory-link of a company from the input worksheet
+  :param worksheet: Source sheet to grab URL from
+  :param row_id: Which company (row) to look for
+  :param target: Which column is being used for the url
+  :return: the directory link as a string
   """
-  workbook = load_workbook(wb)
-  worksheet = workbook[ws]
   next_link = worksheet.cell(column=target,row=row_id).value
   if isinstance(next_link, str) and len(next_link) > 5:
-    logging.info(f"`get_sheet_dir_link` found: {next_link}")
+    logging.info(f"found: {next_link}")
     return next_link
   else:
-    logging.error(f"`get_sheet_dir_link` encountered an entry with missing or invalid `sec_link` at row: {row_id}")
-    return next_link
+    raise Exception(f"encountered an entry with missing or invalid `sec_link`")
 
+@log_exceptions
 def get_dir_10k_link(page_dir:BeautifulSoup) -> str:
+  """
+  Looks for a link on a loaded SEC company directory page to a 10K form
+  Also does other checks (filetype) and handling (weird naming)
+  :param page_dir: Python representation of an HTML webpage
+  :return: URL location of HTML 10K form, if it exists
+  """
   link_10k = ""
   for table_row in page_dir.find_all("tr"):
     try:
-      if table_row.find_all("td")[3].string in ["10-K", "10K", "10k", "10-k"]:
+      if table_row.find_all("td")[3].string in ["10-K", "10K", "10k", "10-k", "10-K Form", "10-K form", "10K Form"]:
         link_10k = SecLink(table_row.find_all('td')[2].a.get('href'))
+        # Ignore PDFs
+        if str(link_10k)[-4:] == ".pdf":
+          continue
+        # Only accept HTMLs
+        elif str(link_10k)[-4:] == ".htm" or str(link_10k)[-5:] == ".html":
+          break
+        # If the link has no identifiable extension, drop it and log it (anomaly)
+        else:
+          logging.debug(f"found an unusual link: {link_10k}")
+          link_10k = ""
     except:
+      # Ignore pages without tables, etcetera
       continue
   if link_10k == "":
-    raise Exception("`get_dir_10k_link` encountered an entry with no `10k_link`")
+    raise Exception("encountered an entry with no linked 10K form")
   return link_10k
 
-def get_diversity_instances(plaintext:str) -> list:
+@log_exceptions
+def get_diversity_instances(plaintext:str, regex=REGEX, search_range=CHARACTER_SEARCH_RANGE) -> list:
+  """
+  Find all sentences which contain an instance of some word
+  :param plaintext: The stripped (no HTML elements) representation of a webpage ("plaint text")
+  :param regex: The "Regular Expression" to search with
+  :param search_range: How many characters to the left and right of any found words to include into a "sentence"
+  :return: list of all "sentences" with the diversity regex
+  """
   min_distance = 0
   max_distance = len(plaintext)
-  places = (match.start() for match in re.finditer(REGEX, plaintext))
+  places = (match.start() for match in re.finditer(regex, plaintext))
   sentences = []
   for place in places:
-    start = max(place - CHARACTER_SEARCH_RANGE, min_distance)
-    stop  = min(place + CHARACTER_SEARCH_RANGE, max_distance)
+    # Make sure the "sentence" does not accidentally select outside the range of the text itself
+    start = max(place - search_range, min_distance)
+    stop  = min(place + search_range, max_distance)
     new_sentence = plaintext[start:stop]
     sentences.append(new_sentence)
   return sentences
 
+@log_exceptions
 def write_sentence_stats(row_id:int, sentences:list, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME):
   workbook = load_workbook(wb)
   worksheet = workbook[ws]
@@ -252,6 +284,7 @@ def update_workbook(row_ids=None, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUM
       continue
     company_name = worksheet.cell(column=coname,row=row_id).value
     logging.debug(f"sec_scraper.update_workbook: NEXT row {row_id} (\"{company_name}\")")
+    # TODO: PUT ALL UNDER ONE GLOBAL TRY
     try:
       d_wordcount = worksheet.cell(column = COLUMN_D_WORDCOUNT, row = row_id).value
       d_sentences = worksheet.cell(column = COLUMN_D_SENTENCES, row = row_id).value
@@ -273,17 +306,19 @@ def update_workbook(row_ids=None, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUM
       logging.error(f"sec_scraper.is_complete: {e}")
       logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
       continue
-    dir_link = worksheet.cell(column=target,row=row_id).value
-    if not isinstance(dir_link, str) or not len(dir_link) > 5:
-      logging.error(f"sec_scraper.get_sheet_dir_link: row {row_id} has missing or invalid `sec_link`")
+    try:
+      dir_link        = get_sheet_dir_link(worksheet,row_id,target)
+    except Exception as e:
       logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
       continue
-    dir_page          = get_page_rate_limited(dir_link)
+    try:
+      dir_page        = get_page_rate_limited(dir_link)
+    except Exception as e:
+      logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
+      continue
     try:
       clean_10k_link  = get_dir_10k_link(dir_page)
     except Exception as e:
-      logging.error(f"sec_scraper.get_dir_10k_link: could not find 10-k link for row {row_id}")
-      logging.error(f"sec_scraper.get_dir_10k_link: {e}")
       logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
       continue
     try:
@@ -300,6 +335,7 @@ def update_workbook(row_ids=None, wb=WORKBOOK_NAME, ws=WORKSHEET_NAME, idc=COLUM
       logging.error(f"sec_scraper.get_diversity_instances: {e}")
       logging.error(f"sec_scraper.update_workbook: SKIPPED row {row_id}")
       continue
+    # TODO: PUT GLOBAL EXCEPT HERE
     try:
       worksheet.cell(
         column  = COLUMN_D_WORDCOUNT,

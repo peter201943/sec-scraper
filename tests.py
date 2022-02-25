@@ -22,6 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+# WARNING! As of https://github.com/peter201943/sec-scraper/commit/9ad4353bfdf00281de0f4e28419a4ff9c8afdee7 this file may not work!
+
 import  requests
 import  json
 import  re
