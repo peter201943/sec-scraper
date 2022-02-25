@@ -22,28 +22,66 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+## Imports
+# Allows making HTTP connections over the Internet
 import  requests
+# Allows reading of JSON, a common plaintext storage medium
 import  json
+# "re" as in REGEX, or "Regular Expression", allows advanced searching of plaintext files
 import  re
+# Allows better error tracing, especially for long-running scripts
 import  logging
+# Allows reading and writing to Microsoft Excel Spreadsheets
 from    openpyxl        import load_workbook
+# Allows setting multiple lines in Excel cells
 from    openpyxl.styles import Alignment
+# Allows cleanup and navigation of HTML page files
 from    bs4             import BeautifulSoup
+# Prevents abuse of Internet services by limiting the number of calls made to them over time
 from    ratelimit       import limits, RateLimitException, sleep_and_retry
+# Allows for precise time operations
 from    datetime        import datetime as __datetime
 from    datetime        import timezone as __timezone
+# Allows reading and writing of Filesystem folders across all operating systems
 from    pathlib         import Path
 
+## Logging
+
+# On fresh install, make sure that the "logs" folder exists
+Path("logs/").mkdir(parents=True, exist_ok=True)
+
 def timename() -> str:
+  """
+  A simple function to generate Windows-compliant ISO datetime (ISO 8601) filenames
+  Uses "Zulu" (Greenwhich Mean Time, +/- 0 hours) as opposed to local time
+  """
   return str(__datetime.now(__timezone.utc)).replace(" ","T").replace("-00:00","").replace("+00:00","").replace(":",".") + "Z"
 
-logging.basicConfig(
-  filename  = f'logs/{timename()}.csv',
-  encoding  = 'utf-8',
-  level     = logging.DEBUG,
-  format    = '"%(asctime)s",%(levelname)s,"%(filename)s.%(funcName)s","%(message)s"'
-)
+def start_logging():
+  """
+  Use CSV (Tabular Plaintext) files so non-technical users can inspect the logs
+  Reports the:
+  - time of an event ("when did this happen?/what order did events happen?")
+  - type of event ("how important is this?")
+  - location (in code) of an event ("who is invoking this event?")
+  - details of an event ("why is this thing crashing?")
+  Uses the last-written last-commit to indicate log-version/project-version
+  """
+  with f'logs/{timename()}.csv' as log_filename:
+    logging.basicConfig(
+      filename  = log_filename,
+      encoding  = 'utf-8',
+      level     = logging.DEBUG,
+      format    = '"%(asctime)s",%(levelname)s,"%(filename)s.%(funcName)s:%(lineno)s","%(message)s"'
+    )
+    with open(log_filename, "a") as logfile:
+      logfile.write('time,event,location,details\n')
+  logging.info("project version: https://github.com/peter201943/sec-scraper/commit/01d26742d5a73664e67c312d44768ea0c6add34e")
 
+# Initialize the logging
+start_logging()
+
+## Variables
 WORKBOOK_NAME           = "kai-file.xlsx"
 WORKSHEET_NAME          = "export"
 COLUMN_MAIN             = 'A' # NOTICE that this is only used down in "update_workbook" for ONE CASE! (this is due to the inconsistent API)
@@ -52,16 +90,20 @@ COLUMN_D_WORDCOUNT      = 11
 COLUMN_D_SENTENCES      = 12
 COLUMN_CONAME           = 5
 ROW_START               = 2
-TEN_SECONDS             = 10
+WAIT_SECONDS            = 10
 MAX_CALLS_PER_SECOND    = 10
 CHARACTER_SEARCH_RANGE  = 100
-REGEX                   = re.compile(r'\bdiversity\b | \bdiverse\b',flags=re.I | re.X)
+REGEX                   = re.compile(r'\bdiversity\b | \bdiverse\b',flags=re.IGNORECASE | re.VERBOSE)
 HEADERS                 = json.load(open("secrets.json"))["sec_request_headers"]
 
-Path("logs/").mkdir(parents=True, exist_ok=True)
+# Log the variable values
+logging.info(f"Variables: {dict(((k, globals()[k]) for k in ('WORKBOOK_NAME', 'WORKSHEET_NAME', 'COLUMN_MAIN', 'COLUMN_SEC_LINK', 'COLUMN_D_WORDCOUNT', 'COLUMN_D_SENTENCES', 'COLUMN_CONAME', 'ROW_START', 'WAIT_SECONDS', 'MAX_CALLS_PER_SECOND', 'CHARACTER_SEARCH_RANGE', 'REGEX')))}")
+
+## Classes
 
 class SecLink():
   """
+  "Repairs" US SEC internal Edgar links from either fragments or "iXBRL" links to plain "Archive" links
   Bad:  `https://www.sec.gov/ix?doc=/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
   Bad:  `Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
   Fix:  `https://www.sec.gov/Archives/edgar/data/1555280/000155528021000098/zts-20201231.htm`
@@ -82,16 +124,22 @@ class SecLink():
     if self.address[0:15] == "/Archives/edgar":
       self.address = "https://www.sec.gov" + self.address
     self.fixed = True
-    logging.info(f"`SecLink.fix` fixed link from: {old_address} to: {self.address}")
+    logging.info(f"fixed link from: {old_address} to: {self.address}")
   def __str__(self):
     return self.address
   def __repr__(self):
     return f"<SecLink ({'fixed' if self.fixed else 'broken'}) \"{self.address}\">"
 
+## Utilities
+
 @sleep_and_retry
-@limits(calls=MAX_CALLS_PER_SECOND, period=TEN_SECONDS)
+@limits(calls=MAX_CALLS_PER_SECOND, period=WAIT_SECONDS)
 def get_page_rate_limited(link:str, headers=HEADERS) -> BeautifulSoup:
-  logging.info(f"`get_page_rate_limited` downloading: {link}")
+  """
+  Downloads an HTML web page and returns it as a navigable Python object
+  Will only start downloading the page if previous calls have not used up the call-budget (number-of-calls over time-in-seconds)
+  """
+  logging.info(f"downloading: {link}")
   resp = requests.get(link, headers=headers)
   html = resp.text
   return BeautifulSoup(html, "html.parser")
